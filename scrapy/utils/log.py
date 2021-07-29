@@ -11,7 +11,6 @@ from scrapy.exceptions import ScrapyDeprecationWarning
 from scrapy.settings import Settings
 from scrapy.utils.versions import scrapy_components_versions
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -57,6 +56,18 @@ DEFAULT_LOGGING = {
         },
     }
 }
+
+_scrapy_extra_handler = None
+
+
+def configure_handler(handler=None):
+    """
+    :param handler: handler to be added on logging.root
+    :return: None
+    """
+    global _scrapy_extra_handler
+    if callable(handler):
+        _scrapy_extra_handler = handler
 
 
 def configure_logging(settings=None, install_root_handler=True):
@@ -122,14 +133,20 @@ _scrapy_root_handler = None
 
 def _get_handler(settings):
     """ Return a log handler object according to settings """
-    filename = settings.get('LOG_FILE')
-    if filename:
-        encoding = settings.get('LOG_ENCODING')
-        handler = logging.FileHandler(filename, encoding=encoding)
-    elif settings.getbool('LOG_ENABLED'):
-        handler = logging.StreamHandler()
-    else:
-        handler = logging.NullHandler()
+    handler = None
+
+    if _scrapy_extra_handler:
+        handler = _scrapy_extra_handler()
+
+    if handler is None:
+        filename = settings.get('LOG_FILE')
+        if filename:
+            encoding = settings.get('LOG_ENCODING')
+            handler = logging.FileHandler(filename, encoding=encoding)
+        elif settings.getbool('LOG_ENABLED'):
+            handler = logging.StreamHandler()
+        else:
+            handler = logging.NullHandler()
 
     formatter = logging.Formatter(
         fmt=settings.get('LOG_FORMAT'),
@@ -168,6 +185,7 @@ class StreamLogger:
     Taken from:
         https://www.electricmonk.nl/log/2011/08/14/redirect-stdout-and-stderr-to-a-logger-in-python/
     """
+
     def __init__(self, logger, log_level=logging.INFO):
         self.logger = logger
         self.log_level = log_level
